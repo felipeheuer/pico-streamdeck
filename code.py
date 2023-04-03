@@ -244,15 +244,23 @@ class Brightness:
     def __init__(self, min = 0, max = 50000):
         self.min = min
         self.max = max
-        self.curr = self.min
+        self._curr = self.min
+        self.needs_refresh = False
 
-    def update(self, value):
-        if value > self.max:
-            value = self.max
-        elif value < self.min:
-            value = self.min
-        self.curr = value
-        return self.curr
+    @property
+    def curr(self):
+        return self._curr
+
+    @curr.setter
+    def curr(self, value):
+        if self._curr != value:
+            self.needs_refresh = True
+            if value > self.max:
+                self._curr = self.max
+            elif value < self.min:
+                self._curr = self.min
+            else:
+                self._curr = value
 
     def set_min(self):
         self.curr = self.min
@@ -278,15 +286,18 @@ class Fade:
 
     def step_up(self):
         new_brt = self.brightness.curr + self.fade_step
-        return self.brightness.update(new_brt)
+        self.brightness.curr = new_brt
+        return self.brightness.curr
 
     def step_down(self):
         new_brt = self.brightness.curr - self.fade_step
-        return self.brightness.update(new_brt)
+        self.brightness.curr = new_brt
+        return self.brightness.curr
 
     def start(self, style):
         if style not in self.fade_styles:
             return
+        self.fade_on = True
         self.fade_current = style
         self.fade_curr_dir_up = (style in self.fade_styles[:2])
         if style in self.fade_styles[:2]:
@@ -295,6 +306,7 @@ class Fade:
             self.brightness.set_max()
 
     def stop(self):
+        self.fade_on = False
         self.fade_current = ""
 
     def handler(self):
@@ -318,10 +330,10 @@ class Fade:
         return ret
 
 class Led:
-    def __init__(self, gpio, pwm_freq = 2000, fade_interval = 0.001, fade_step = 10000):
+    def __init__(self, gpio, pwm_freq = 1000, fade_interval = 0.001, fade_step = 2750):
         self.brightness = Brightness()
         self.fade = Fade(self.brightness, interval=fade_interval, step=fade_step)
-        self.driver = pwmio.PWMOut(led_pins[gpio], frequency=pwm_freq)
+        self.driver = pwmio.PWMOut(gpio, frequency=pwm_freq)
         self.driver.duty_cycle = 0
         self.curr_time = 0
 
@@ -333,22 +345,29 @@ class Led:
         self.curr_time = 0
         self.fade.stop()
 
-    def off(self):
-        self.driver.duty_cycle = 0
-        self.brightness.update(0)
+    def refresh(self):
+        if self.brightness.needs_refresh:
+            self.driver.duty_cycle = self.brightness.curr
 
-    def update(self):
-        self.driver.duty_cycle = self.brightness.curr
+    def off(self):
+        self.brightness.curr = 0
+        self.refresh()
 
     def fade_handler(self):
         if time.monotonic() - self.curr_time > self.fade.interval:
             self.curr_time = time.monotonic()
             ret = self.fade.handler()
-            self.driver.duty_cycle = self.brightness.curr
+            self.refresh()
             if ret:
                 self.fade_stop()
                 return ret
         return False
+
+    def update(self):
+        if self.fade.fade_on:
+            self.fade_handler()
+        else:
+            self.refresh()
 
 class Button:
     def __init__(self, name, gpio, keycodes: list, type = "press", led = None):
@@ -383,10 +402,28 @@ class Button:
             self.led.fade_start("down")
 
 
+def change_level(level, last_press, led, button):
+    _level = not level
+    print("Level:", _level)
+    if _level == 1:
+        min_brt = 0
+    else:
+        min_brt = 500
+
+    for j in range(len(button)):
+        led[j].brightness.min = min_brt
+
+        if j == last_press and _level == 0:
+            print("A")
+            led[j].brightness.set_max()
+        else:
+            led[j].brightness.set_min()
+    return _level
+
 led = []
 button = []
 for i in range(len(led_pins)):
-    new_led = Led(i)
+    new_led = Led(led_pins[i])
     led.append(new_led)
     if i == 3:
         type = "hold"
@@ -395,29 +432,32 @@ for i in range(len(led_pins)):
     new_button = Button(botao[i]["name"], i, botao[i]["keycode"], led=led[i], type=type)
     button.append(new_button)
 
+level = change_level(1, 3, led, button)
+
 while True:
     for i in range(len(botao)):
-        led[i].fade_handler()
+        led[i].update()
 
         if not button[i].is_pressed() and not button[i].held:
             # send the keyboard commands
             if button[i].press(level):
-                level = not level
-                print("Level:", level)
-                if level == 1:
-                    min_brt = 0
-                else:
-                    min_brt = 500
+                level = change_level(level, i, led, button)
+                # level = not level
+                # print("Level:", level)
+                # if level == 1:
+                #     min_brt = 0
+                # else:
+                #     min_brt = 500
 
-                for j in range(len(button)):
-                    led[j].brightness.min = min_brt
+                # for j in range(len(button)):
+                #     led[j].brightness.min = min_brt
 
-                    if j == i and level == 0:
-                        print("A")
-                        led[j].brightness.set_max()
-                    else:
-                        led[j].brightness.set_min()
-            led[i].update()
+                #     if j == i and level == 0:
+                #         print("A")
+                #         led[j].brightness.set_max()
+                #     else:
+                #         led[j].brightness.set_min()
+            # led[i].update()
 
             # update blink led
             # led[i].fade_start("up")
