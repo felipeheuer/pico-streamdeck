@@ -19,393 +19,92 @@
 
 # Imports
 import board
-import pwmio
-import usb_hid
-import sys
-import time
 
-from adafruit_hid.keyboard import Keyboard
 from adafruit_hid.keycode import Keycode
-from digitalio import DigitalInOut, Direction, Pull
+from lib.led_button import Button, Led
 
 
 botao = [
     {
         "name": "Botao 1",
-        "held": False,
         "keycode": [[Keycode.KEYPAD_SEVEN], [Keycode.CONTROL, Keycode.F9]],
-        "button": None,
-        "led": {
-            "driver": None,
-            "type": "switch",
-            "blink": False,
-            "pending_off": False
-        }
+        "gpio": board.GP0,
+        "led_gpio": board.GP13
     },
     {
         "name": "Botao 2",
-        "held": False,
         "keycode": [[Keycode.KEYPAD_EIGHT], [Keycode.CONTROL, Keycode.F10]],
-        "button": None,
-        "led": {
-            "driver": None,
-            "type": "switch",
-            "blink": False,
-            "pending_off": False
-        }
+        "gpio": board.GP1,
+        "led_gpio": board.GP14
     },
     {
         "name": "Botao 3",
-        "held": False,
         "keycode": [[Keycode.KEYPAD_NINE], [Keycode.CONTROL, Keycode.F11]],
-        "button": None,
-        "led": {
-            "driver": None,
-            "type": "switch",
-            "blink": False,
-            "pending_off": False
-        }
+        "gpio": board.GP2,
+        "led_gpio": board.GP16
     },
     {
         "name": "Botao 4",
-        "held": False,
         "keycode": [[], []],
-        "button": None,
-        "led": {
-            "driver": None,
-            "type": "toggle",
-            "blink": False,
-            "pending_off": False
-        }
+        "gpio": board.GP3,
+        "led_gpio": board.GP17
     },
     {
         "name": "Botao 5",
-        "held": False,
         "keycode": [[Keycode.KEYPAD_FOUR], [Keycode.CONTROL, Keycode.F12]],
-        "button": None,
-        "led": {
-            "driver": None,
-            "type": "switch",
-            "blink": False,
-            "pending_off": False
-        }
+        "gpio": board.GP4,
+        "led_gpio": board.GP18
     },
     {
         "name": "Botao 6",
-        "held": False,
         "keycode": [[Keycode.KEYPAD_FIVE], [Keycode.CONTROL, Keycode.F13]],
-        "button": None,
-        "led": {
-            "driver": None,
-            "type": "switch",
-            "blink": False,
-            "pending_off": False
-        }
+        "gpio": board.GP5,
+        "led_gpio": board.GP19
     },
     {
         "name": "Botao 7",
-        "held": False,
         "keycode": [[Keycode.KEYPAD_SIX], [Keycode.CONTROL, Keycode.F14]],
-        "button": None,
-        "led": {
-            "driver": None,
-            "type": "switch",
-            "blink": False,
-            "pending_off": False
-        }
+        "gpio": board.GP6,
+        "led_gpio": board.GP20
     },
     {
         "name": "Botao 8",
-        "held": False,
         "keycode": [[Keycode.COMMA], [Keycode.CONTROL, Keycode.F15]],
-        "button": None,
-        "led": {
-            "driver": None,
-            "type": "switch",
-            "blink": False,
-            "pending_off": False
-        }
+        "gpio": board.GP7,
+        "led_gpio": board.GP21
     },
     {
         "name": "Botao 9",
-        "held": False,
         "keycode": [[Keycode.KEYPAD_ONE], [Keycode.CONTROL, Keycode.F16]],
-        "button": None,
-        "led": {
-            "driver": None,
-            "type": "switch",
-            "blink": False,
-            "pending_off": False
-        }
+        "gpio": board.GP8,
+        "led_gpio": board.GP22
     },
     {
         "name": "Botao 10",
-        "held": False,
         "keycode": [[Keycode.KEYPAD_TWO], [Keycode.CONTROL, Keycode.F17]],
-        "button": None,
-        "led": {
-            "driver": None,
-            "type": "switch",
-            "blink": False,
-            "pending_off": False
-        }
+        "gpio": board.GP9,
+        "led_gpio": board.GP26
     },
     {
         "name": "Botao 11",
-        "held": False,
         "keycode": [[Keycode.KEYPAD_THREE], [Keycode.CONTROL, Keycode.F18]],
-        "button": None,
-        "led": {
-            "driver": None,
-            "type": "switch",
-            "blink": False,
-            "pending_off": False
-        }
+        "gpio": board.GP10,
+        "led_gpio": board.GP27
     },
     {
         "name": "Botao 12",
-        "held": False,
         "keycode": [[Keycode.KEYPAD_ZERO], [Keycode.CONTROL, Keycode.F19]],
-        "button": None,
-        "led": {
-            "driver": None,
-            "type": "switch",
-            "blink": False,
-            "pending_off": False
-        }
+        "gpio": board.GP11,
+        "led_gpio": board.GP28
     },
 ]
 
-# Define button pins
-btn_pins = [
-    board.GP0,
-    board.GP1,
-    board.GP2,
-    board.GP3,
-    board.GP4,
-    board.GP5,
-    board.GP6,
-    board.GP7,
-    board.GP8,
-    board.GP9,
-    board.GP10,
-    board.GP11,
-]
 
-# Define led pins
-led_pins = [
-    board.GP13,
-    board.GP14,
-    board.GP16,
-    board.GP17,
-    board.GP18,
-    board.GP19,
-    board.GP20,
-    board.GP21,
-    board.GP22,
-    board.GP26,
-    board.GP27,
-    board.GP28,
-]
-
-fadding_status = False
-fadding_counter = 0
-fadding_step = int(65000/100)
-fadding_dir = 1
-
-# for i in range(len(botao)):
-#     button = DigitalInOut(btn_pins[i])
-#     button.direction = Direction.INPUT
-#     button.pull = Pull.UP
-#     botao[i]["button"] = button
-
-#     if i == 0:
-#         led = pwmio.PWMOut(board.GP13, frequency=1000)
-#         led.duty_cycle = 0
-#     else:
-#         led = DigitalInOut(led_pins[i])
-#         led.direction = Direction.OUTPUT
-#     botao[i]["led"]["driver"] = led
-
-# Initialize Keybaord
-keyboard = Keyboard(usb_hid.devices)
-
-blinking_interval = 1000
-fading_interval = 100
-fade_speed = 50
-
-# Loop around and check for key presses
-counter = 0
-fade_dir = 1
-level = 0
-
-
-class Brightness:
-    def __init__(self, min = 0, max = 50000):
-        self.min = min
-        self.max = max
-        self._curr = self.min
-        self.needs_refresh = False
-
-    @property
-    def curr(self):
-        return self._curr
-
-    @curr.setter
-    def curr(self, value):
-        if self._curr != value:
-            self.needs_refresh = True
-            if value > self.max:
-                self._curr = self.max
-            elif value < self.min:
-                self._curr = self.min
-            else:
-                self._curr = value
-
-    def set_min(self):
-        self.curr = self.min
-
-    def set_max(self):
-        self.curr = self.max
-
-    def is_max(self):
-        return self.curr >= self.max
-
-    def is_min(self):
-        return self.curr <= self.min
-
-class Fade:
-    def __init__(self, brt: Brightness, interval, step):
-        self.brightness = brt
-        self.interval = interval
-        self.fade_step = step
-        self.fade_on = False
-        self.fade_styles = ["up", "up-down", "down-up", "down"]
-        self.fade_current = ""
-        self.fade_curr_dir_up = False
-
-    def step_up(self):
-        new_brt = self.brightness.curr + self.fade_step
-        self.brightness.curr = new_brt
-        return self.brightness.curr
-
-    def step_down(self):
-        new_brt = self.brightness.curr - self.fade_step
-        self.brightness.curr = new_brt
-        return self.brightness.curr
-
-    def start(self, style):
-        if style not in self.fade_styles:
-            return
-        self.fade_on = True
-        self.fade_current = style
-        self.fade_curr_dir_up = (style in self.fade_styles[:2])
-        if style in self.fade_styles[:2]:
-            self.brightness.set_min()
-        else:
-            self.brightness.set_max()
-
-    def stop(self):
-        self.fade_on = False
-        self.fade_current = ""
-
-    def handler(self):
-        ret = False
-        if self.fade_current == "up" or (self.fade_curr_dir_up and self.fade_current in self.fade_styles[1:3]):
-            self.step_up()
-            if self.brightness.is_max():
-                if self.fade_current == "up-down" and self.fade_curr_dir_up:
-                    self.fade_curr_dir_up = False
-                else:
-                    self.stop()
-                    ret = True
-        elif self.fade_current == "down" or (not self.fade_curr_dir_up and self.fade_current in self.fade_styles[1:3]):
-            self.step_down()
-            if self.brightness.is_min():
-                if self.fade_current == "down-up" and not self.fade_curr_dir_up:
-                    self.fade_curr_dir_up = True
-                else:
-                    self.stop()
-                    ret = True
-        return ret
-
-class Led:
-    def __init__(self, gpio, pwm_freq = 1000, fade_interval = 0.001, fade_step = 2750):
-        self.brightness = Brightness()
-        self.fade = Fade(self.brightness, interval=fade_interval, step=fade_step)
-        self.driver = pwmio.PWMOut(gpio, frequency=pwm_freq)
-        self.driver.duty_cycle = 0
-        self.curr_time = 0
-
-    def fade_start(self, style):
-        self.curr_time = time.monotonic()
-        self.fade.start(style)
-
-    def fade_stop(self):
-        self.curr_time = 0
-        self.fade.stop()
-
-    def refresh(self):
-        if self.brightness.needs_refresh:
-            self.driver.duty_cycle = self.brightness.curr
-
-    def off(self):
-        self.brightness.curr = 0
-        self.refresh()
-
-    def fade_handler(self):
-        if time.monotonic() - self.curr_time > self.fade.interval:
-            self.curr_time = time.monotonic()
-            ret = self.fade.handler()
-            self.refresh()
-            if ret:
-                self.fade_stop()
-                return ret
-        return False
-
-    def update(self):
-        if self.fade.fade_on:
-            self.fade_handler()
-        else:
-            self.refresh()
-
-class Button:
-    def __init__(self, name, gpio, keycodes: list, type = "press", led = None):
-        self.driver = DigitalInOut(btn_pins[gpio])
-        self.driver.direction = Direction.INPUT
-        self.driver.pull = Pull.UP
-        self.keys = keycodes
-        self.name = name
-        self.held = False
-        self.led = led
-        self.types = ["press", "hold"]
-        self.type = type
-        self.level = 0
-        self.changes_level = (type == "hold")
-
-    def is_pressed(self):
-        return self.driver.value
-
-    def press(self, level):
-        self.held = True
-        if level <= len(self.keys):
-            print(self.name, *self.keys[level])
-            #keyboard.send(*self.keys[level])
-
-        self.led.fade_start("up")
-        print(self.changes_level)
-        return self.changes_level
-
-    def release(self, level):
-        self.held = False
-        if not (level == 0 and self.type == "hold"):
-            self.led.fade_start("down")
-
-
-def change_level(level, last_press, led, button):
-    _level = not level
-    print("Level:", _level)
-    if _level == 1:
+layer = 0
+def change_layer(layer, last_press, led, button):
+    _layer = not layer
+    print("layer:", _layer)
+    if _layer == 1:
         min_brt = 0
     else:
         min_brt = 500
@@ -413,147 +112,36 @@ def change_level(level, last_press, led, button):
     for j in range(len(button)):
         led[j].brightness.min = min_brt
 
-        if j == last_press and _level == 0:
+        if j == last_press and _layer == 0:
             print("A")
             led[j].brightness.set_max()
         else:
             led[j].brightness.set_min()
-    return _level
+    return _layer
 
 led = []
 button = []
-for i in range(len(led_pins)):
-    new_led = Led(led_pins[i])
+for i in range(len(botao)):
+    new_led = Led(botao[i]["led_gpio"])
     led.append(new_led)
     if i == 3:
         type = "hold"
     else:
         type = "press"
-    new_button = Button(botao[i]["name"], i, botao[i]["keycode"], led=led[i], type=type)
+    new_button = Button(botao[i]["name"], botao[i]["gpio"], botao[i]["keycode"], led=led[i], type=type)
     button.append(new_button)
 
-level = change_level(1, 3, led, button)
+layer = change_layer(1, 3, led, button)
 
 while True:
     for i in range(len(botao)):
         led[i].update()
 
-        if not button[i].is_pressed() and not button[i].held:
+        if button[i].was_pressed():
             # send the keyboard commands
-            if button[i].press(level):
-                level = change_level(level, i, led, button)
-                # level = not level
-                # print("Level:", level)
-                # if level == 1:
-                #     min_brt = 0
-                # else:
-                #     min_brt = 500
-
-                # for j in range(len(button)):
-                #     led[j].brightness.min = min_brt
-
-                #     if j == i and level == 0:
-                #         print("A")
-                #         led[j].brightness.set_max()
-                #     else:
-                #         led[j].brightness.set_min()
-            # led[i].update()
-
-            # update blink led
-            # led[i].fade_start("up")
+            if button[i].press(layer):
+                layer = change_layer(layer, i, led, button)
 
         # remove the held indication if it is no longer held
-        elif button[i].is_pressed() and button[i].held:
-            button[i].release(level)
-
-
-while True:
-    time_to_blink = counter >= blinking_interval
-    time_to_fade = counter >= fading_interval
-    if time.monotonic() - curr_time > 0.05:
-        curr_time = time.monotonic()
-        if fadding_status == True:
-            if fadding_counter >= 20000:
-                fadding_counter = 0
-                curr_led += 1
-            else:
-                fadding_counter += fadding_step
-            if curr_led not in range (12):
-                curr_led = 0
-            led[curr_led].duty_cycle = fadding_counter
-exit()
-
-while True:
-    # x=sys.stdin.read(1)
-    # print("You pressed", x)
-
-    # time to blink?
-    time_to_blink = counter >= blinking_interval
-    time_to_fade = counter >= fading_interval
-
-    # if time_to_fade:
-    #     hid_actions[0]["led"].duty_cycle = hid_actions[0]["led"].duty_cycle + (fade_dir * fade_speed)
-    #     if hid_actions[0]["led"].duty_cycle == 0 or hid_actions[0]["led"].duty_cycle == 65000:
-    #         fade_dir = fade_dir * -1
-
-    if time.monotonic() - curr_time > 0.001:
-        curr_time = time.monotonic()
-        # led_fade_handler(0)
-
-    for i in range(len(botao)):
-    # for i in range(12):
-        # check if button is pressed but make sure it is not held down
-        if not botao[i]["button"].value and not botao[i]["held"]:
-
-            # print the name of the command for debug purposes
-            print(botao[i]["name"], *botao[i]["keycode"][level])
-
-            # send the keyboard commands
-            #keyboard.send(*hid_actions[i]["keycode"])
-
-            # update blink led
-            # botao[i]["led"]["blink"] = not botao[i]["led"]["blink"]
-            # botao[i]["led"]["driver"].value = 0
-            # print("Update blink for", i, ":", botao[i]["led"]["blink"])
-
-            # light up the associated LED
-            # hid_actions[i]["led"].value = not hid_actions[i]["led"].value
-
-            # turn off other LEDs that may be on
-            # for j in range(12):
-            #     if i != j:
-            #         hid_actions[j]["led"].value = False
-
-            # set the held to True for debounce
-            botao[i]["held"] = True
-            if i == 0:
-                fadding_status = True
-                fadding_dir = 1
-            else:
-                if i == 3:
-                    level = not level
-                    change_led(i, not level),
-                else:
-                    invert_led(i)
-
-            # keyboard.send(*botao[i]["keycode"][level])
-
-        # if time_to_blink:
-        #     blink_led(i)
-
-        # remove the held indication if it is no longer held
-        elif botao[i]["button"].value and botao[i]["held"]:
-            botao[i]["held"] = False
-            if botao[i]["led"]["type"] == "switch":
-                if i == 0:
-                    fadding_status = True
-                    # fadding_dir = -1
-                    botao[i]["led"]["pending_off"] = True
-                else:
-                    change_led(i, False)
-
-
-    if time_to_blink:
-        counter = 0
-    else:
-        counter += 1
+        elif button[i].was_released():
+            button[i].release(layer)
